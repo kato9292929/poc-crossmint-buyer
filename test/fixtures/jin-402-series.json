@@ -1,0 +1,23 @@
+{
+  "x402Version": 2,
+  "error": "Payment required",
+  "resource": {
+    "url": "https://jin.x402jp.com/api/jin/series",
+    "description": "JIN daily food index series (excl/incl, matched SKU count). Single-store observation, not official CPI, not a forecast.",
+    "mimeType": ""
+  },
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "amount": "10000",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "payTo": "4s8XQC2WzRfgH8Xiep7ybnCW11VKRCMwxQF6jknx3VPf",
+      "maxTimeoutSeconds": 300,
+      "extra": {
+        "resource": "https://jin.x402jp.com/api/jin/series",
+        "feePayer": "CjNFTjvBhbJJd2B5ePPMHRLx1ELZpa8dwQgGL727eKww"
+      }
+    }
+  ]
+}

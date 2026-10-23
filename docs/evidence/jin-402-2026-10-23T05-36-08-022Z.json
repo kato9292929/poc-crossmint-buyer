@@ -1,0 +1,51 @@
+{
+  "retrievedAt": "2026-10-23T05:36:08.022Z",
+  "results": [
+    {
+      "url": "https://jin.x402jp.com/api/jin/series",
+      "status": 402,
+      "expectedUsd": "0.01",
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "amount": "10000",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "4s8XQC2WzRfgH8Xiep7ybnCW11VKRCMwxQF6jknx3VPf",
+          "maxTimeoutSeconds": 300,
+          "extra": {
+            "resource": "https://jin.x402jp.com/api/jin/series",
+            "feePayer": "CjNFTjvBhbJJd2B5ePPMHRLx1ELZpa8dwQgGL727eKww"
+          }
+        }
+      ],
+      "crossmintEvmWallet": {
+        "eip155:8453": "not_payable_by_crossmint",
+        "eip155:84532": "not_payable_by_crossmint"
+      }
+    },
+    {
+      "url": "https://jin.x402jp.com/api/jin/movers",
+      "status": 402,
+      "expectedUsd": "0.02",
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "amount": "20000",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "payTo": "4s8XQC2WzRfgH8Xiep7ybnCW11VKRCMwxQF6jknx3VPf",
+          "maxTimeoutSeconds": 300,
+          "extra": {
+            "resource": "https://jin.x402jp.com/api/jin/movers",
+            "feePayer": "CjNFTjvBhbJJd2B5ePPMHRLx1ELZpa8dwQgGL727eKww"
+          }
+        }
+      ],
+      "crossmintEvmWallet": {
+        "eip155:8453": "not_payable_by_crossmint",
+        "eip155:84532": "not_payable_by_crossmint"
+      }
+    }
+  ]
+}
