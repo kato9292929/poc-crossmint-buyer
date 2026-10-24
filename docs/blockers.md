@@ -37,6 +37,27 @@ staging のキーを受け取ったら `npm run probe:solana` を1回実行し�
 
 Crossmint（Alex Rawitz）から、この確認の API の応答をそのままメールのスレッドに送るよう頼まれている（担当は Alejandro）。`npm run probe:solana` は、貼り付け用の文面を `out/probe-solana-<日時>.md` にも書き出す。
 
+### probe:solana の結果（1回目、2026-10-24 16:29 JST、本番のキー）
+
+本人の指示で、staging ではなく本番のキー（`sk_production_…`）で実行した（`ALLOW_PRODUCTION=true npm run probe:solana -- --allow-production`）。資金は動かしていない。
+
+| 項目 | 結果 |
+|---|---|
+| ウォレット | `2AjCRJWDH1ecvURP6ie7iMSTTtRYxcXmGLYmvdQ8MJjv`（Solana mainnet、サーバー署名者、alias `poc-crossmint-buyer-sol`）。作成は通った。mainnet 上にはまだアカウントが無い（`getAccountInfo` が `null`。初回の取引で作られるとみられる） |
+| SDK の `SolanaWallet` | `signTransaction`・`signMessage` は無い（`sendTransaction`・`send`・`createTransaction`・`approve` などはある）。上の根拠3を実物で確認 |
+| REST の署名 API | **キーのスコープ不足で 403。Solana で署名できるかの答えはまだ出ていない** |
+
+```
+POST https://www.crossmint.com/api/2025-06-09/wallets/solana%3Aalias%3Apoc-crossmint-buyer-sol/signatures
+X-API-KEY: ***
+{"type":"message","params":{"message":"x402 exact (svm) probe: can this wallet sign?"}}
+
+HTTP 403
+{"error":true,"message":"The API key provided doesn't have the required scopes to perform this action: wallets:signatures.create. It has the scopes: wallets.read,wallets.create,wallets:transactions.create,wallets:transactions.read."}
+```
+
+次: キーに `wallets:signatures.create` を足してもらい、同じコマンドをもう1回実行する（alias で同じウォレットを使うので、新しいウォレットは作られない）。
+
 **4月に止まった箇所との対応**: 4月の記録はこのリポジトリと実証1・実証2の中には無かった。4月も「JIN の Solana の 402 に Crossmint で署名できない」で止まったのであれば、この A-1 と同じ箇所。ログの `error` の先頭 `not_payable_by_crossmint` で特定できる。
 
 解消するには、次のどちらかが要る（どちらもこのリポジトリの外の変更なので、実装はしていない）。

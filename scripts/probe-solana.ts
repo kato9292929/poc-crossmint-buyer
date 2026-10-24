@@ -1,11 +1,11 @@
 /**
- * フェーズ0-2 の確認（staging のキーが要る）：Crossmint の Solana のサーバー側ウォレットで、
+ * フェーズ0-2 の確認（staging のキー。本番のキーは ALLOW_PRODUCTION=true と --allow-production の両方が要る）：Crossmint の Solana のサーバー側ウォレットで、
  * x402 の Solana（exact）の支払いに必要な「部分署名したトランザクションを返す」ことができるかを確かめる。
  *
  *   npm run probe:solana
  *
  * やること（資金は動かさない）:
- *  1. Solana（staging = devnet）のサーバー側ウォレットを alias で作成／取得し、アドレスを記録する
+ *  1. Solana（staging = devnet、本番 = mainnet）のサーバー側ウォレットを alias で作成／取得し、アドレスを記録する
  *  2. SDK の SolanaWallet が持つメソッドを列挙する（signTransaction / signMessage の有無）
  *  3. REST の署名 API（POST /api/2025-06-09/wallets/{locator}/signatures）に Solana のウォレットで1回だけリクエストし、
  *     応答をそのまま記録する（キーは伏せる）
@@ -18,7 +18,9 @@ import { WALLET_ALIAS, crossmintClient } from '../src/crossmint/wallet.ts';
 import { redact } from '../src/redact.ts';
 
 const { env, wallets } = crossmintClient();
-if (env !== 'staging') throw new Error('この確認は staging のキーで行う');
+// 本番で行うのは、本人が明示した場合だけ（2026-10-24）。ウォレットを1つ作り、署名を1回頼むだけで、資金は動かさない
+if (env !== 'staging' && !process.argv.includes('--allow-production')) throw new Error('本番のキーで確認するときは --allow-production を付ける');
+const solanaRpc = env === 'staging' ? 'https://api.devnet.solana.com' : 'https://api.mainnet-beta.solana.com';
 const secret = required('CROSSMINT_SIGNER_SECRET');
 const alias = `${WALLET_ALIAS}-sol`;
 
@@ -46,8 +48,8 @@ const res = await fetch(endpoint, {
 });
 const resText = await res.text();
 
-// devnet 上のアカウントの所有プログラム（スマートウォレットかどうか）
-const acct = await fetch('https://api.devnet.solana.com', {
+// チェーン上のアカウントの所有プログラム（スマートウォレットかどうか）
+const acct = await fetch(solanaRpc, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getAccountInfo', params: [wallet.address, { encoding: 'base64' }] }),
@@ -64,7 +66,8 @@ const record = {
   hasSignTransaction: methods.has('signTransaction'),
   hasSignMessage: methods.has('signMessage'),
   restSignature: { request: { method: 'POST', url: endpoint, headers: { 'X-API-KEY': '***' }, body }, status: res.status, body: redact(resText) },
-  devnetAccountInfo: acct,
+  solanaRpc,
+  accountInfo: acct,
 };
 mkdirSync('out', { recursive: true });
 const file = `out/probe-solana-${record.checkedAt.replace(/[:.]/g, '-')}.json`;
