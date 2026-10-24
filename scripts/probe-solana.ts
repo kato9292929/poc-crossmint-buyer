@@ -71,3 +71,24 @@ const file = `out/probe-solana-${record.checkedAt.replace(/[:.]/g, '-')}.json`;
 writeFileSync(file, JSON.stringify(record, null, 2));
 console.log(JSON.stringify(record, null, 2));
 console.log(`保存: ${file}`);
+
+// Crossmint のスレッドにそのまま貼る文面（英語）。キーは伏せてある
+const mail = [
+  `Solana wallet probe (${env}, ${record.checkedAt}, ${record.sdk})`,
+  '',
+  `Wallet: ${wallet.address} (server signer, alias "${alias}", chain "solana")`,
+  `SolanaWallet methods: ${record.solanaWalletMethods.join(', ')}`,
+  `signTransaction: ${record.hasSignTransaction ? 'present' : 'absent'} / signMessage: ${record.hasSignMessage ? 'present' : 'absent'}`,
+  '',
+  'Request:',
+  `POST ${endpoint}`,
+  'X-API-KEY: <server key, redacted>',
+  JSON.stringify(body),
+  '',
+  `Response: HTTP ${res.status}`,
+  redact(resText),
+  '',
+].join('\n');
+const mailFile = file.replace(/\.json$/, '.md');
+writeFileSync(mailFile, mail);
+console.log(`\n--- スレッドに貼る文面（${mailFile}） ---\n${mail}`);

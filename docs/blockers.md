@@ -35,6 +35,8 @@ staging のキーを受け取ったら `npm run probe:solana` を1回実行し�
 - REST の署名 API（`POST /api/2025-06-09/wallets/{locator}/signatures`）に Solana のウォレットでリクエストしたときの応答（そのまま記録する）
 - ウォレットのアドレスを所有しているプログラム（スマートウォレットかどうか）
 
+Crossmint（Alex Rawitz）から、この確認の API の応答をそのままメールのスレッドに送るよう頼まれている（担当は Alejandro）。`npm run probe:solana` は、貼り付け用の文面を `out/probe-solana-<日時>.md` にも書き出す。
+
 **4月に止まった箇所との対応**: 4月の記録はこのリポジトリと実証1・実証2の中には無かった。4月も「JIN の Solana の 402 に Crossmint で署名できない」で止まったのであれば、この A-1 と同じ箇所。ログの `error` の先頭 `not_payable_by_crossmint` で特定できる。
 
 解消するには、次のどちらかが要る（どちらもこのリポジトリの外の変更なので、実装はしていない）。
@@ -45,6 +47,12 @@ staging のキーを受け取ったら `npm run probe:solana` を1回実行し�
 ## B：エージェントカード（order intent）
 
 order intent の API は `/api/unstable/` 配下（早期アクセス）。staging のキーを受け取ってから本人が web/enroll で通す。エラーで止まった場合は、`scripts/enroll-server.ts` と `src/card-purchase.ts` が、エンドポイント・リクエスト・レスポンス（キー・JWT は伏せる）を下の「自動記録」に追記する。カード番号の取得の応答本文は、成功しても失敗しても記録しない（失敗の応答にカード番号は入らないが、13桁以上の数字列は伏せる）。
+
+Crossmint からの回答（Alex Rawitz、2026-10-23 のメール）:
+
+- staging のアカウントは、申請なしで order intent を作れる。日本からの利用でも変わらない。staging の API キーには全スコープが付き、encrypted card のレールも全 staging プロジェクトで有効
+- ドキュメントの「contact us」は本番の話（自前のチェックアウトで encrypted card を使う場合と、利用者に公開する前のプロジェクトの有効化）
+- order intent はクライアント側のキー＋サインインした利用者の JWT が要る。サーバー側のキーで呼ぶと「Provided API key must be client specific」が返る（このリポジトリは web/enroll でクライアント側のキーと JWT を使っているので、この形になっている）
 
 まだ記録は無い。
 
