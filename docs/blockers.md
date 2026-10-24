@@ -58,6 +58,21 @@ HTTP 403
 
 次: キーに `wallets:signatures.create` を足してもらい、同じコマンドをもう1回実行する（alias で同じウォレットを使うので、新しいウォレットは作られない）。
 
+### probe:solana の結果（2回目、2026-10-24 19:33 JST、本番のキー、`wallets:signatures.create` 追加後）
+
+**Crossmint の API が、Solana のウォレットでの署名を明示的に断った。** A-1 の根拠1（ドキュメント）・3（SDK）と一致する。ウォレットの種類は `solana-smart-wallet`（スマートウォレット）。資金は動かしていない。
+
+```
+POST https://www.crossmint.com/api/2025-06-09/wallets/solana%3Aalias%3Apoc-crossmint-buyer-sol/signatures
+X-API-KEY: ***
+{"type":"message","params":{"message":"x402 exact (svm) probe: can this wallet sign?"}}
+
+HTTP 400
+{"error":true,"message":"Signature type 'message' not supported for wallet type 'solana-smart-wallet'"}
+```
+
+この結果は Crossmint のスレッド（Alex Rawitz、Alejandro）に送る。
+
 **4月に止まった箇所との対応**: 4月の記録はこのリポジトリと実証1・実証2の中には無かった。4月も「JIN の Solana の 402 に Crossmint で署名できない」で止まったのであれば、この A-1 と同じ箇所。ログの `error` の先頭 `not_payable_by_crossmint` で特定できる。
 
 解消するには、次のどちらかが要る（どちらもこのリポジトリの外の変更なので、実装はしていない）。
