@@ -45,5 +45,6 @@
 |---|---|
 | Crossmint のウォレット（本番、Base） | 未作成（本人の API キー発行後に `npm run wallet:setup`） |
 | Crossmint のウォレット（staging、Base Sepolia） | 未作成 |
-| フェーズBの Nevermined の買い手アカウント | 未定（本人への依頼で決める） |
+| フェーズBの Nevermined の買い手アカウント | このリポジトリ専用の Sandbox の買い手を新しく作る（2026-10-25 決定）。userId は作成後に追記する。この userId の `plan.purchased` はすべて Crossmint のカード経由 |
+| Crossmint の Solana のウォレット（本番） | `2AjCRJWDH1ecvURP6ie7iMSTTtRYxcXmGLYmvdQ8MJjv`（確認用に作っただけ。支払いには使っていない） |
 | フェーズBの Stripe Checkout のセッション ID | 未購入 |
