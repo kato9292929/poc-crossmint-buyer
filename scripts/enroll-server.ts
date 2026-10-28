@@ -20,6 +20,7 @@ import { CrossmintApiError, OrderIntentsClient, railNeedingVerification, selectR
 import { recordBlocker } from '../src/blockers.ts';
 import { purchasePlanWithCard } from '../src/card-purchase.ts';
 import { PLAN } from '../src/nevermined/plan.ts';
+import { JWT_SUBJECT, issueUserJwt } from '../src/crossmint/custom-jwt.ts';
 
 const port = Number(optional('ENROLL_PORT') ?? 5174);
 const clientApiKey = required('CROSSMINT_CLIENT_API_KEY');
@@ -29,6 +30,10 @@ const merchant = {
   url: optional('CARD_MERCHANT_URL') ?? 'https://nevermined.app',
   countryCode: optional('CARD_MERCHANT_COUNTRY') ?? 'US',
 };
+// CROSSMINT_AUTH=custom-jwt: カード利用者の JWT をこのサーバーが発行する（staging だけ。メールのコードが要らない）
+const customJwt = optional('CROSSMINT_AUTH') === 'custom-jwt';
+if (customJwt && env !== 'staging') throw new Error('独自 JWT のモードは staging だけ');
+const customJwtEmail = optional('CARD_USER_EMAIL') ?? 'card-user@example.com';
 if (Number(PLAN.priceUsd) > Number(HARD_MAX_CARD_USD)) throw new Error('プランの価格が上限を超えている');
 
 const vite = await createViteServer({
@@ -58,7 +63,10 @@ function clientFor(req: IncomingMessage): OrderIntentsClient {
 async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
   try {
     if (url.pathname === '/api/config' && req.method === 'GET') {
-      return json(res, 200, { env, clientApiKey, plan: { name: PLAN.name, priceUsd: PLAN.priceUsd, credits: PLAN.credits }, merchant });
+      const base = { env, clientApiKey, plan: { name: PLAN.name, priceUsd: PLAN.priceUsd, credits: PLAN.credits }, merchant };
+      if (!customJwt) return json(res, 200, base);
+      // このサーバーはローカル（localhost）だけで待ち受けるので、JWT をページに渡してよい
+      return json(res, 200, { ...base, customJwt: { jwt: await issueUserJwt(clientApiKey), subject: JWT_SUBJECT, email: customJwtEmail } });
     }
     if (url.pathname === '/api/register-card' && req.method === 'POST') {
       const b = await readJson(req);
@@ -110,6 +118,6 @@ createServer((req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
   if (url.pathname.startsWith('/api/')) return void api(req, res, url);
   vite.middlewares(req, res);
-}).listen(port, () => {
+}).listen(port, '127.0.0.1', () => {
   console.log(`web/enroll: http://localhost:${port}  （Crossmint ${env}）`);
 });

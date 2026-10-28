@@ -15,9 +15,12 @@
     "x402:local": "tsx scripts/x402-local-server.ts",
     "buy:jin": "tsx scripts/buy-jin.ts",
     "probe:solana": "tsx scripts/probe-solana.ts",
-    "enroll": "tsx scripts/enroll-server.ts"
+    "enroll": "tsx scripts/enroll-server.ts",
+    "card:flow": "tsx scripts/run-card-flow.ts",
+    "jwks": "tsx -e \"import('./src/crossmint/custom-jwt.ts').then(async m => console.log((await m.writeJwks()) ? 'web/public/jwks.json を更新した（コミット・プッシュが要る）' : '変更なし'))\""
   },
   "dependencies": {
+    "@crossmint/common-sdk-base": "0.13.0",
     "@crossmint/wallets-sdk": "1.20.4",
     "@nevermined-io/payments": "1.13.0",
     "@x402/core": "2.28.0",

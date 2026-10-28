@@ -5,6 +5,7 @@ import {
   CrossmintPaymentMethodManagement,
   CrossmintProvider,
   OrderIntentVerification,
+  useCrossmint,
   useCrossmintAuth,
   type OrderIntentVerificationProps,
 } from '@crossmint/client-sdk-react-ui';
@@ -18,6 +19,16 @@ interface Config {
   clientApiKey: string;
   plan: { name: string; priceUsd: string; credits: number };
   merchant: { name: string; url: string; countryCode: string };
+  /** 独自 JWT のモード（CROSSMINT_AUTH=custom-jwt）のとき、サーバーが発行したカード利用者の JWT。サインインの画面は出さない */
+  customJwt?: { jwt: string; subject: string; email: string };
+}
+interface Auth {
+  jwt?: string;
+  label: string | null;
+  email: string;
+  status: string;
+  login?: () => void;
+  logout?: () => void;
 }
 type Rail = { rail: string; provider?: string; status: string; error?: { code: string } };
 interface OiView {
@@ -37,8 +48,21 @@ async function call<T>(path: string, jwt: string, body?: unknown): Promise<T> {
   return data as T;
 }
 
-function Flow({ config }: { config: Config }) {
+function CrossmintAuthFlow({ config }: { config: Config }) {
   const { login, logout, jwt, user, status } = useCrossmintAuth();
+  const email = user?.email ?? 'buyer@example.com';
+  return <Flow config={config} auth={{ jwt, label: user?.email ?? user?.id ?? null, email, status, login: () => login(), logout: () => void logout() }} />;
+}
+
+function CustomJwtFlow({ config }: { config: Config }) {
+  const { setJwt } = useCrossmint();
+  const c = config.customJwt!;
+  useEffect(() => setJwt(c.jwt), [c.jwt, setJwt]);
+  return <Flow config={config} auth={{ jwt: c.jwt, label: `${c.subject}（独自 JWT）`, email: c.email, status: 'logged-in' }} />;
+}
+
+function Flow({ config, auth }: { config: Config; auth: Auth }) {
+  const { login, logout, jwt, status } = auth;
   const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
   const [rails, setRails] = useState<Rail[] | null>(null);
   const [oi, setOi] = useState<OiView | null>(null);
@@ -62,7 +86,7 @@ function Flow({ config }: { config: Config }) {
   const onCardSaved = (pm: { paymentMethodId: string }) =>
     guard(async () => {
       setPaymentMethodId(pm.paymentMethodId);
-      const r = await call<{ rails: Rail[] }>('/api/register-card', jwt!, { paymentMethodId: pm.paymentMethodId, email: user?.email ?? 'buyer@example.com' });
+      const r = await call<{ rails: Rail[] }>('/api/register-card', jwt!, { paymentMethodId: pm.paymentMethodId, email: auth.email });
       setRails(r.rails);
     });
 
@@ -84,7 +108,7 @@ function Flow({ config }: { config: Config }) {
 
   const purchase = () =>
     guard(async () => {
-      const r = await call<{ entry: unknown }>('/api/purchase', jwt!, { orderIntentId: oi!.orderIntent.orderIntentId, email: user?.email ?? 'buyer@example.com' });
+      const r = await call<{ entry: unknown }>('/api/purchase', jwt!, { orderIntentId: oi!.orderIntent.orderIntentId, email: auth.email });
       setResult(r.entry);
     });
 
@@ -100,10 +124,10 @@ function Flow({ config }: { config: Config }) {
         <h2>1. サインイン</h2>
         {status === 'logged-in' ? (
           <p>
-            {user?.email ?? user?.id} でサインイン中 <button onClick={() => logout()}>サインアウト</button>
+            {auth.label} でサインイン中 {logout && <button onClick={() => logout()}>サインアウト</button>}
           </p>
         ) : (
-          <button onClick={() => login()} disabled={status === 'initializing'}>
+          <button onClick={() => login?.()} disabled={status === 'initializing'}>
             Crossmint にサインイン（メールのワンタイムコード）
           </button>
         )}
@@ -197,9 +221,13 @@ function App() {
   if (!config) return <p>読み込み中…</p>;
   return (
     <CrossmintProvider apiKey={config.clientApiKey}>
-      <CrossmintAuthProvider loginMethods={['email']}>
-        <Flow config={config} />
-      </CrossmintAuthProvider>
+      {config.customJwt ? (
+        <CustomJwtFlow config={config} />
+      ) : (
+        <CrossmintAuthProvider loginMethods={['email']}>
+          <CrossmintAuthFlow config={config} />
+        </CrossmintAuthProvider>
+      )}
     </CrossmintProvider>
   );
 }

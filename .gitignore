@@ -6,3 +6,4 @@ logs/*.jsonl
 out/
 web/enroll/dist/
 *.pem
+.secrets/

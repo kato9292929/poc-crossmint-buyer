@@ -43,3 +43,21 @@ export async function createCheckout(): Promise<{ checkoutLink: string; sessionI
   if (!link || !/^https:\/\//.test(link)) throw new Error(`orderFiatPlan の応答に checkout の URL が無い: keys=${Object.keys(r).join(',')}`);
   return { checkoutLink: link, sessionId: (r.stripeCheckoutSessionId ?? r.sessionId ?? null) as string | null };
 }
+
+/**
+ * 買い手のキーから、Nevermined 上の買い手の識別子を取り出す（キーそのものは出さない）。
+ * キーは「環境:JWT」の形で、JWT の中身に userId（sub）とアカウントのアドレスが入っている。実証2の nvm_user_hashes の元になる値。
+ */
+export function buyerIdentity(): { userId: string | null; accountAddress: string | null } {
+  const key = required('NVM_API_KEY_BUYER');
+  const { payments } = buyerPayments();
+  let userId: string | null = null;
+  try {
+    const jwt = key.slice(key.indexOf(':') + 1);
+    const payload = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString('utf8')) as Record<string, unknown>;
+    userId = typeof payload.sub === 'string' ? payload.sub : typeof payload.userId === 'string' ? payload.userId : null;
+  } catch {
+    userId = null;
+  }
+  return { userId, accountAddress: payments.getAccountAddress() ?? null };
+}
