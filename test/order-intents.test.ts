@@ -29,6 +29,10 @@ test('rail の選び方：active なカードネットワーク → encrypted-ca
   assert.equal(railNeedingVerification(pending)?.provider, 'vic');
   const both = [{ rail: 'agentic-token', provider: 'vic', status: 'error', credentialFormats: [] }, { rail: 'encrypted-card', status: 'active', credentialFormats: ['card'] }];
   assert.equal(selectRail(both)?.rail, 'encrypted-card');
+  // staging の実際の応答：VIC が検証待ちでも encrypted-card と spt は最初から active。この場合は VIC の検証を先に通す
+  const staging = [pending[0], { rail: 'spt', provider: 'stripe', status: 'active', credentialFormats: ['identifier'] }, both[1]];
+  assert.equal(selectRail(staging), undefined);
+  assert.equal(railNeedingVerification(staging)?.provider, 'vic');
   const active = [{ ...pending[0], status: 'active' }, both[1]];
   assert.equal(selectRail(active)?.rail, 'agentic-token');
 });

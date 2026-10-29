@@ -143,12 +143,12 @@ function Flow({ config, auth }: { config: Config; auth: Auth }) {
             </p>
           )}
           {paymentMethodId ? (
-            <p>
-              登録済み: {paymentMethodId}
+            <>
+              <p>登録済み: {paymentMethodId}</p>
               {rails && <pre>{JSON.stringify(rails, null, 2)}</pre>}
-            </p>
+            </>
           ) : (
-            <CrossmintPaymentMethodManagement jwt={jwt} onPaymentMethodSelected={onCardSaved} />
+            <CrossmintPaymentMethodManagement jwt={jwt} allowedModes={['existing', 'new']} onPaymentMethodSelected={onCardSaved} />
           )}
         </section>
       )}

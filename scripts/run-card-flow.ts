@@ -26,7 +26,9 @@ const port = Number(optional('ENROLL_PORT') ?? 5174);
 const base = `http://localhost:${port}`;
 
 if (crossmintEnv(required('CROSSMINT_CLIENT_API_KEY')) !== 'staging') throw new Error('カード経路の自動実行は staging だけ');
-required('NVM_API_KEY_BUYER');
+// --until-approval: order intent の承認までで止める（Nevermined のキーが無くても試せる）
+const untilApproval = process.argv.includes('--until-approval');
+if (!untilApproval) required('NVM_API_KEY_BUYER');
 if (await writeJwks()) {
   throw new Error(`署名鍵が新しくなった。web/public/jwks.json をコミット・プッシュしてから再実行する（Crossmint は ${JWKS_URL} を読む）`);
 }
@@ -35,7 +37,11 @@ const outDir = `out/card-flow/${new Date().toISOString().replace(/[:.]/g, '-')}`
 mkdirSync(outDir, { recursive: true });
 let shot = 0;
 const snap = async (page: Page, name: string) => {
-  await page.screenshot({ path: `${outDir}/${String(++shot).padStart(2, '0')}-${name}.png`, fullPage: true }).catch(() => undefined);
+  const n = String(++shot).padStart(2, '0');
+  await page.screenshot({ path: `${outDir}/${n}-${name}.png`, fullPage: true }).catch(() => undefined);
+  for (const [i, p] of page.context().pages().filter((p) => p !== page).entries()) {
+    await p.screenshot({ path: `${outDir}/${n}-${name}-popup${i}.png` }).catch(() => undefined);
+  }
 };
 const step = (msg: string) => console.log(`[card-flow] ${new Date().toISOString()} ${msg}`);
 
@@ -43,10 +49,17 @@ const step = (msg: string) => console.log(`[card-flow] ${new Date().toISOString(
 const server = spawn('npx', ['tsx', 'scripts/enroll-server.ts'], {
   env: { ...process.env, CROSSMINT_AUTH: 'custom-jwt', NODE_ENV: 'development', ENROLL_PORT: String(port) },
   stdio: ['ignore', 'pipe', 'pipe'],
+  detached: true, // npx → tsx の孫プロセスまで止められるよう、プロセスグループごと起動する
 });
 server.stdout.on('data', (d) => process.stdout.write(`[enroll] ${d}`));
 server.stderr.on('data', (d) => process.stderr.write(`[enroll] ${d}`));
-const stop = () => server.kill('SIGTERM');
+const stop = () => {
+  try {
+    process.kill(-server.pid!, 'SIGTERM');
+  } catch {
+    // 止まっている
+  }
+};
 process.on('exit', stop);
 for (let i = 0; ; i++) {
   if (await fetch(`${base}/api/config`).then((r) => r.ok).catch(() => false)) break;
@@ -63,18 +76,26 @@ const context = await browser.newContext({ locale: 'en-US' });
 const page = await context.newPage();
 page.setDefaultTimeout(30_000);
 page.on('console', (m) => m.type() === 'error' && console.log(`[page:error] ${m.text().slice(0, 300)}`));
-// 模擬の Visa の画面が passkey を作る場合に備えて、WebAuthn の仮想認証器を付ける
-const cdp = await context.newCDPSession(page);
-await cdp.send('WebAuthn.enable');
-await cdp.send('WebAuthn.addVirtualAuthenticator', {
-  options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+// 模擬の Visa の画面が passkey を作るので、WebAuthn の仮想認証器を付ける。passkey の画面は別ウィンドウ（ポップアップ）で開くので、新しいウィンドウにも付ける
+async function addAuthenticator(p: Page) {
+  const cdp = await context.newCDPSession(p);
+  await cdp.send('WebAuthn.enable');
+  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+  });
+}
+await addAuthenticator(page);
+context.on('page', (p) => {
+  step(`新しいウィンドウ: ${p.url().slice(0, 100)}`);
+  void addAuthenticator(p).catch((e) => step(`仮想認証器を付けられない: ${(e as Error).message}`));
+  p.on('console', (m) => m.type() === 'error' && console.log(`[popup:error] ${m.text().slice(0, 300)}`));
 });
 
 /** すべてのフレームから、最初に見えた要素を探す。 */
 async function findIn(selectors: string[], timeoutMs = 30_000): Promise<{ frame: Frame; selector: string } | null> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    for (const frame of page.frames()) {
+    for (const frame of context.pages().flatMap((p) => p.frames())) {
       for (const sel of selectors) {
         const el = frame.locator(sel).first();
         if ((await el.count().catch(() => 0)) && (await el.isVisible().catch(() => false))) return { frame, selector: sel };
@@ -96,7 +117,7 @@ async function clickAny(label: string, selectors: string[], timeoutMs = 30_000) 
   await hit.frame.locator(hit.selector).first().click();
 }
 async function dumpFrames(tag: string) {
-  for (const f of page.frames()) {
+  for (const f of context.pages().flatMap((p) => p.frames())) {
     const text = (await f.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 300);
     if (text) console.log(`[frame:${tag}] ${f.url().slice(0, 80)} :: ${text}`);
   }
@@ -108,7 +129,14 @@ try {
   await snap(page, 'signed-in');
   step('独自 JWT でサインイン済み');
 
-  // 2. カード登録（Crossmint の iframe の中）
+  // 2. カード登録（Crossmint の iframe の中）。前の実行で保存済みなら、そのカードを選ぶ
+  const existing = await findIn(['text=/\\*5556/'], 8000);
+  if (existing) {
+    await existing.frame.locator(existing.selector).first().click();
+    await clickAny('保存済みカードの選択', ['button:has-text("Continue")', 'button:has-text("Use")', 'button:has-text("Select")', 'button:has-text("Save")'], 10_000).catch(() => undefined);
+    await page.getByText('登録済み:').waitFor({ timeout: 60_000 });
+    step('保存済みのカードを選んだ');
+  } else {
   await fillAny('カード番号', ['input[autocomplete="cc-number"]', 'input[name*="number" i]', 'input[placeholder*="1234"]', 'input[aria-label*="card number" i]'], TEST_CARD.number);
   await fillAny('有効期限', ['input[autocomplete="cc-exp"]', 'input[name*="exp" i]', 'input[placeholder*="MM" i]'], TEST_CARD.expiry);
   await fillAny('CVC', ['input[autocomplete="cc-csc"]', 'input[name*="cvc" i]', 'input[name*="cvv" i]', 'input[placeholder*="CVC" i]'], TEST_CARD.cvc);
@@ -122,8 +150,9 @@ try {
   await snap(page, 'card-filled');
   await clickAny('カードの保存', ['button:has-text("Save")', 'button:has-text("Add")', 'button:has-text("Continue")', 'button[type="submit"]']);
   await page.getByText('登録済み:').waitFor({ timeout: 60_000 });
-  await snap(page, 'card-saved');
   step('カードを登録した');
+  }
+  await snap(page, 'card-saved');
 
   // 3. order intent の作成と承認
   await page.getByRole('button', { name: 'order intent を作成して承認へ進む' }).click();
@@ -133,22 +162,32 @@ try {
     if (await page.getByRole('heading', { name: '4. 購入を実行' }).isVisible().catch(() => false)) break;
     const err = await page.locator('pre.err').innerText().catch(() => '');
     if (err) throw new Error(`承認で止まった: ${err.slice(0, 1000)}`);
-    // 模擬の承認画面: 連絡先の選択 → 続行 → ワンタイムコード（どの値でも通る）→ passkey
-    const otp = await findIn(['input[autocomplete="one-time-code"]', 'input[inputmode="numeric"]', 'input[name*="otp" i]', 'input[name*="code" i]'], 1000);
+    // 模擬の承認画面: 連絡先の選択（既定のまま）→ Continue → ワンタイムコード（どの値でも通る）→ Confirm
+    //   → 「Set Up Your Visa Passkey」の Continue → 別ウィンドウの Visa の画面で規約に同意して Continue（仮想認証器が passkey を作る）
+    const otp = await findIn(['input[autocomplete="one-time-code"]', 'input[inputmode="numeric"]', 'input[name*="otp" i]', 'input[name*="code" i]'], 500);
     if (otp && otpTried < 3) {
-      otpTried++;
-      await otp.frame.locator(otp.selector).first().fill('123456');
-      await snap(page, `otp-${otpTried}`);
+      // 6桁が1文字ずつの入力欄に分かれている。空なら先頭をクリックして、キーボードで6桁を打つ
+      const first = otp.frame.locator(otp.selector).first();
+      if (!(await first.inputValue().catch(() => ''))) {
+        otpTried++;
+        await first.click();
+        await otp.frame.page().keyboard.type('123456', { delay: 80 });
+        await snap(page, `otp-${otpTried}`);
+      }
     }
-    const choice = await findIn(['[role="radio"]:not([aria-checked="true"])', 'input[type="radio"]:not(:checked)'], 500);
-    if (choice) await choice.frame.locator(choice.selector).first().click().catch(() => undefined);
+    const agree = await findIn(['input[type="checkbox"]:not(:checked)', '[role="checkbox"][aria-checked="false"]'], 300);
+    if (agree) {
+      const box = agree.frame.locator(agree.selector).first();
+      await box.check({ force: true, timeout: 3000 }).catch(() => box.click({ force: true, timeout: 3000 }).catch(() => undefined));
+      await snap(page, 'agree');
+    }
     const next = await findIn(
-      ['button:has-text("Continue")', 'button:has-text("Verify")', 'button:has-text("Confirm")', 'button:has-text("Approve")', 'button:has-text("Submit")', 'button:has-text("Next")', 'button:has-text("Create passkey")', 'button:has-text("Use passkey")', 'button:has-text("Done")'],
-      1000,
+      ['button:has-text("Continue"):enabled', 'button:has-text("Verify"):enabled', 'button:has-text("Confirm"):enabled', 'button:has-text("Approve"):enabled', 'button:has-text("Create passkey"):enabled', 'button:has-text("Use passkey"):enabled', 'button:has-text("Done"):enabled'],
+      500,
     );
     if (next) {
       await snap(page, 'verify');
-      await next.frame.locator(next.selector).first().click().catch(() => undefined);
+      await next.frame.locator(next.selector).first().click({ timeout: 3000 }).catch(() => undefined);
     }
     await sleep(1500);
   }
@@ -158,6 +197,11 @@ try {
   }
   await snap(page, 'order-intent-active');
   step('order intent を承認した');
+
+  if (untilApproval) {
+    console.log('\n=== 承認まで完了（--until-approval）===\n' + (await page.locator('section:has(h2:has-text("3.")) pre').innerText().catch(() => '')));
+    process.exit(0);
+  }
 
   // 4. 購入
   await page.getByRole('button', { name: '購入を実行' }).click();

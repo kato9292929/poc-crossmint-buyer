@@ -177,12 +177,17 @@ interface CredentialResponse {
   expiresAt: string;
 }
 
-/** ドキュメントの方針どおり、active なカードネットワークのレールを優先し、無ければ encrypted-card。 */
+/**
+ * ドキュメントの方針どおり、カードネットワークのレール（agentic-token）を優先する。
+ * agentic-token が検証待ち（pending_verification）なら、encrypted-card が active でも選ばずに検証を先に通す。
+ * encrypted-card を使うのは、カードネットワークのレールが無いか error のときだけ。
+ */
 export function selectRail(rails: OrderIntentRail[]): OrderIntentRail | undefined {
-  return (
-    rails.find((r) => r.rail === 'agentic-token' && r.status === 'active' && (r.credentialFormats ?? []).includes('card')) ??
-    rails.find((r) => r.rail === 'encrypted-card' && r.status === 'active')
-  );
+  const network = rails.filter((r) => r.rail === 'agentic-token' && (r.credentialFormats ?? []).includes('card'));
+  const active = network.find((r) => r.status === 'active');
+  if (active) return active;
+  if (network.some((r) => r.status === 'pending_verification')) return undefined;
+  return rails.find((r) => r.rail === 'encrypted-card' && r.status === 'active');
 }
 
 /** 検証が要るレール（OrderIntentVerification を出す対象）。 */
