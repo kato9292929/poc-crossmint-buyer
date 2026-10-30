@@ -84,6 +84,16 @@ HTTP 400
 
 order intent の API は `/api/unstable/` 配下（早期アクセス）。staging のキーを受け取ってから本人が web/enroll で通す。エラーで止まった場合は、`scripts/enroll-server.ts` と `src/card-purchase.ts` が、エンドポイント・リクエスト・レスポンス（キー・JWT は伏せる）を下の「自動記録」に追記する。カード番号の取得の応答本文は、成功しても失敗しても記録しない（失敗の応答にカード番号は入らないが、13桁以上の数字列は伏せる）。
 
+### 結果：止まらずに購入まで通った（2026-10-30 21:15 JST）
+
+staging の order intent（VIC のレールを passkey で承認）からカード番号を取得し、実証1のプランを1回買えた。Nevermined の残高は 0 → 100。ログ: [evidence/phase-b-2026-10-30.jsonl](evidence/phase-b-2026-10-30.jsonl)。
+
+途中で1回止まった箇所（Crossmint 側ではなく Nevermined 側の仕様変更）:
+
+- `orderFiatPlan`（`@nevermined-io/payments` 1.13.0、`POST /api/v1/fiat/stripe/payment`、`sessionType: "embedded"`）が、Stripe Checkout の URL ではなく **Stripe の PaymentIntent**（`object: "payment_intent"`、`client_secret` つき、`livemode: false`、`payment_method_types: ["card","link"]`）を返すようになっていた。`sessionType` を `hosted`・`checkout`・`redirect` に変えても同じ
+- ログの1行目（21:07、`orderFiatPlan の応答に checkout の URL が無い`）がこれ
+- 対応: Nevermined App と同じく、Stripe Elements（Stripe 自身のカード入力欄）で PaymentIntent を確定する形に変えた。公開鍵は `https://nevermined.app/api/config` の `sandboxStripePublishableApiKey`（PaymentIntent と同じ Stripe アカウント）
+
 Crossmint からの回答（Alex Rawitz、2026-10-23 のメール）:
 
 - staging のアカウントは、申請なしで order intent を作れる。日本からの利用でも変わらない。staging の API キーには全スコープが付き、encrypted card のレールも全 staging プロジェクトで有効

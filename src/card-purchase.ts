@@ -3,8 +3,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { recordBlocker } from './blockers.ts';
 import { CrossmintApiError, OrderIntentsClient, selectRail } from './crossmint/order-intents.ts';
 import { appendPurchase, baseEntry, fileLoggingEnabled, logDir, readDay, type PurchaseLogEntry } from './log.ts';
-import { PLAN, buyerPayments, createCheckout, planBalance } from './nevermined/plan.ts';
-import { payStripeCheckout } from './stripe-checkout.ts';
+import { PLAN, buyerPayments, createPaymentIntent, planBalance } from './nevermined/plan.ts';
+import { fetchNeverminedStripeKey, payPaymentIntent } from './stripe-elements.ts';
 
 export interface CardPurchaseInput {
   client: OrderIntentsClient;
@@ -28,8 +28,8 @@ export function alreadyPurchased(env: string): boolean {
 /**
  * Crossmint の order intent から1回分のカード番号を取り、実証1の Nevermined プリペイドプラン（prepaid-100、$1）を1回買う。
  * 1. order intent の rail を確かめる（active なカードネットワークのレール、無ければ encrypted-card）
- * 2. Nevermined の買い手のキーで Stripe Checkout の URL を作る
- * 3. カード番号を $1.00 分だけ取得し、Stripe Checkout に入れて支払う（番号はどこにも残さない）
+ * 2. Nevermined の買い手のキーで、プランの Stripe の PaymentIntent を作る
+ * 3. カード番号を $1.00 分だけ取得し、Stripe Elements（Stripe のカード入力欄）に入れて PaymentIntent を支払う（番号はどこにも残さない）
  * 4. Nevermined の残高が増えたことを確かめる（最大5分）
  */
 export async function purchasePlanWithCard(input: CardPurchaseInput): Promise<PurchaseLogEntry> {
@@ -75,21 +75,24 @@ export async function purchasePlanWithCard(input: CardPurchaseInput): Promise<Pu
     ref.rail = rail.rail;
     ref.provider = rail.provider ?? null;
 
-    step = 'Nevermined の Stripe Checkout の作成';
+    step = 'Nevermined の PaymentIntent の作成';
     const before = await planBalance();
     ref.balanceBefore = before.balance.toString();
-    const checkout = await createCheckout();
-    sessionId = checkout.sessionId;
+    const pi = await createPaymentIntent();
+    sessionId = pi.paymentIntentId;
+    if (pi.amount !== Math.round(Number(PLAN.priceUsd) * 100) || pi.currency !== 'usd') {
+      return finish('failure', `price_mismatch: PaymentIntent は ${pi.amount} ${pi.currency}、想定は $${PLAN.priceUsd}`, sessionId);
+    }
+    const publishableKey = await fetchNeverminedStripeKey(buyerPayments().environment);
 
     step = 'カード番号の取得（order intent credentials）';
-    const card = await client.mintCard(oi, PLAN.priceUsd, `${oi.orderIntentId}:${sessionId ?? started.getTime()}`);
+    const card = await client.mintCard(oi, PLAN.priceUsd, `${oi.orderIntentId}:${sessionId}`);
     ref.credentialId = card.meta.id;
 
-    step = 'Stripe Checkout での支払い';
-    const paid = await payStripeCheckout(checkout.checkoutLink, card, input.buyer, { headless: input.headless });
-    ref.checkoutOutcome = paid.message;
-    ref.checkoutFinalHost = paid.finalUrl ? new URL(paid.finalUrl).host : null;
-    if (!paid.ok) return finish('failure', `stripe_checkout_failed: ${paid.message}`, sessionId);
+    step = 'Stripe での支払い（PaymentIntent の確定）';
+    const paid = await payPaymentIntent(publishableKey, pi.clientSecret, card, { email: input.buyer.email, name: input.buyer.name, postalCode: input.buyer.postalCode ?? '94105' }, { headless: input.headless });
+    ref.paymentIntentStatus = paid.status;
+    if (!paid.ok) return finish('failure', `stripe_payment_failed: ${paid.message ?? paid.status}`, sessionId);
 
     step = 'クレジット付与の確認';
     const deadline = Date.now() + 5 * 60_000;

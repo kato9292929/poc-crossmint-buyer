@@ -3,8 +3,7 @@ import { optional, required } from '../config.ts';
 
 /**
  * 実証1（poc-card-credits）の Nevermined プリペイドプラン。値は実証1の config/sandbox.json（公開値）と同じ。
- * 買い手のキー（NVM_API_KEY_BUYER）で orderFiatPlan を呼ぶと Stripe Checkout の URL が返る。
- * Nevermined にはカード番号を API で渡して買う経路が無く、カードを入れられるのはこの Stripe Checkout のページだけ（docs/phase0.md）。
+ * 買い手のキー（NVM_API_KEY_BUYER）で orderFiatPlan を呼ぶと Stripe の PaymentIntent が返り、それをカードで支払う（docs/phase0.md）。
  */
 export const PLAN = {
   name: 'prepaid-100',
@@ -25,7 +24,8 @@ export function nvmEnvironment(apiKey: string): NvmEnvironment {
 export function buyerPayments() {
   const key = required('NVM_API_KEY_BUYER');
   const environment = nvmEnvironment(key);
-  return { environment, payments: Payments.getInstance({ nvmApiKey: key, environment }) };
+  // 環境はキーの接頭辞から SDK が決める（environment を渡すと非推奨の警告が出る）
+  return { environment, payments: Payments.getInstance({ nvmApiKey: key } as Parameters<typeof Payments.getInstance>[0]) };
 }
 
 export async function planBalance(): Promise<{ balance: bigint; holder: string }> {
@@ -34,14 +34,18 @@ export async function planBalance(): Promise<{ balance: bigint; holder: string }
   return { balance: BigInt(b.balance), holder: b.holderAddress };
 }
 
-export async function createCheckout(): Promise<{ checkoutLink: string; sessionId: string | null }> {
+/**
+ * 実証1のプランの支払いを始める。orderFiatPlan（SDK 1.13.0）は、2026-10-30 時点で Stripe Checkout の URL ではなく
+ * Stripe の PaymentIntent（client_secret つき、テストモード）を返す。client_secret は呼び出し側で支払いに使うだけで、ログには出さない。
+ */
+export async function createPaymentIntent(): Promise<{ paymentIntentId: string; clientSecret: string; amount: number; currency: string }> {
   const { payments } = buyerPayments();
-  const raw = (await payments.plans.orderFiatPlan(PLAN.planId)) as unknown as { result?: Record<string, unknown> } & Record<string, unknown>;
-  // 実証1と同じく、戻り値の形が型と違う場合に備えて URL を探す
-  const r = (raw?.result ?? raw) as Record<string, unknown>;
-  const link = (r.checkoutLink ?? r.url ?? r.checkoutUrl) as string | undefined;
-  if (!link || !/^https:\/\//.test(link)) throw new Error(`orderFiatPlan の応答に checkout の URL が無い: keys=${Object.keys(r).join(',')}`);
-  return { checkoutLink: link, sessionId: (r.stripeCheckoutSessionId ?? r.sessionId ?? null) as string | null };
+  const raw = (await payments.plans.orderFiatPlan(PLAN.planId)) as unknown as Record<string, unknown>;
+  const r = ((raw?.result as Record<string, unknown>) ?? raw) as Record<string, unknown>;
+  if (r.object !== 'payment_intent' || typeof r.client_secret !== 'string' || typeof r.id !== 'string') {
+    throw new Error(`orderFiatPlan の応答が PaymentIntent ではない: keys=${Object.keys(r).join(',')}`);
+  }
+  return { paymentIntentId: r.id, clientSecret: r.client_secret, amount: Number(r.amount), currency: String(r.currency) };
 }
 
 /**

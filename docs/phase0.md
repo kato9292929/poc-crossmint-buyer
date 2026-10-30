@@ -45,7 +45,7 @@ staging での確認は、指示書の方針どおりローカルの x402 テス
 |---|---|
 | プラン | `prepaid-100`（$1・100 クレジット・30日有効）。`NVM_PLAN_ID=61852813…774087` |
 | 環境 | **Nevermined Sandbox だけ**（`NVM_ENVIRONMENT=sandbox`。go-live の条件を満たすまで live は起動しない）。カード決済は Stripe の**テストモード** |
-| 買い方 | 買い手のキーで `payments.plans.orderFiatPlan(planId)` → **Stripe Checkout（ホスト型）の URL** が返る → そのページでカードを入れて払う → Stripe の webhook でクレジットが付与される |
+| 買い方 | 買い手のキーで `payments.plans.orderFiatPlan(planId)` → **Stripe Checkout（ホスト型）の URL** が返る → そのページでカードを入れて払う → Stripe の webhook でクレジットが付与される。**2026-10-30 の実行時には、Checkout の URL ではなく Stripe の PaymentIntent（client_secret つき）が返るように変わっていた。** Nevermined App と同じく Stripe Elements で確定する形に変えた（[blockers.md](blockers.md) の B） |
 | API でカード番号を渡して買う経路 | **無い**（SDK 1.13.0 にも公式ドキュメントにも無い。Braintree のプランは SDK では買えない） |
 
 **判断: カード番号で買える経路はある（Stripe Checkout のページ）ので、フェーズBは実装する。** ただし API ではなくブラウザのページなので、取得したカード番号は Playwright で Stripe Checkout の入力欄に直接入れる（`src/stripe-checkout.ts`）。

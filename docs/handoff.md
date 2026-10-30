@@ -26,7 +26,7 @@
 - Nevermined Sandbox（Stripe のテストモード）での購入なので、実証2がテストモードの取引を読んでいない限り、カード入口の件数には出ない。
 - Stripe 上は普通のカード決済に見える。Crossmint 経由であることを示す印は取引に付かない（カード番号は Crossmint が発行した1回限りの番号だが、Stripe にはブランドと下4桁しか残らない）。
 - 識別に使えるもの:
-  - このリポジトリのログの `tx`（Stripe Checkout のセッション ID `cs_test_…`）。Stripe の API でセッション → PaymentIntent → 残高取引（`txn_…`）とたどれば、実証2の `txn_hash`（`txn_…` の匿名値）と突き合わせられる
+  - このリポジトリのログの `tx`（Stripe の PaymentIntent の ID `pi_…`）。Stripe の API で PaymentIntent → Charge → 残高取引（`txn_…`）とたどれば、実証2の `txn_hash`（`txn_…` の匿名値）と突き合わせられる
   - 購入に使った Nevermined の買い手アカウント。このリポジトリ専用の買い手アカウントにすれば、その userId の `plan.purchased` はすべて Crossmint のカード経由になる
   - 実証1のゲートウェイを通して使った場合は、実証1のトークン ID（`card_token_ids`）
 
@@ -45,6 +45,6 @@
 |---|---|
 | Crossmint のウォレット（本番、Base） | 未作成（本人の API キー発行後に `npm run wallet:setup`） |
 | Crossmint のウォレット（staging、Base Sepolia） | 未作成 |
-| フェーズBの Nevermined の買い手アカウント | このリポジトリ専用の Sandbox の買い手を新しく作る（2026-10-25 決定）。userId は作成後に追記する。この userId の `plan.purchased` はすべて Crossmint のカード経由 |
+| フェーズBの Nevermined の買い手アカウント | このリポジトリ専用の Sandbox の買い手。userId（＝アカウントのアドレス）`0xa670D5e40c7c4B82f16E0E09118Daf8402Eb873e`。この userId の `plan.purchased` はすべて Crossmint のカード経由 |
 | Crossmint の Solana のウォレット（本番） | `2AjCRJWDH1ecvURP6ie7iMSTTtRYxcXmGLYmvdQ8MJjv`（確認用に作っただけ。支払いには使っていない） |
-| フェーズBの Stripe Checkout のセッション ID | 未購入 |
+| フェーズBの購入（Stripe の PaymentIntent） | `pi_3UWEiMPh60bb0BjN12CaN4hJ`（2026-10-30 21:15 JST、$1.00、テストモード、succeeded）。order intent `3ce1717b-8eb7-4162-a288-572bcdf00ac2`。ログ: [evidence/phase-b-2026-10-30.jsonl](evidence/phase-b-2026-10-30.jsonl) |
