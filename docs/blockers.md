@@ -102,6 +102,25 @@ Crossmint からの回答（Alex Rawitz、2026-10-23 のメール）:
 
 まだ記録は無い。
 
+## C：カード経路の本番（指示書2の1）は保留（2026-11-01）
+
+本人の判断で保留した。理由は次の2つで、どちらも Crossmint 側の問題ではない。
+
+| # | 止まる所 | 根拠 | 解消の条件 |
+|---|---|---|---|
+| C-1 | 実証1のプランが live に無い | `kato9292929/poc-card-credits` の `config/sandbox.json` は `NVM_ENVIRONMENT: sandbox` のまま。`docs/live.md` の移行作業は未実施（2026-11-01 の `main` で確認）。Sandbox のプランは live では使えない | 実証1が live に移行する。live では Stripe Connect の接続（Nevermined App の Settings → Stripe Connect）が要るが、日本の売り手で使えるかは実証1の `docs/live.md` の前提 B のとおり未確認 |
+| C-2 | 本番では Crossmint Auth が使えない | Crossmint のドキュメント（`/wallets/guides/crossmint-auth`）は Crossmint Auth を staging 用とし、本番は自前の認証（Bring Your Own Auth）と JWT の設定を求めている。指示書2の「Crossmint が用意するサインイン」は本番には無い | 本人の判断で **Firebase（Google でサインイン）** を使う。利用者は公開ページ（GitHub Pages）で実際にサインインし、Mastercard の実カードの登録と承認を行う。購入の段階では、こちらが Firebase のサービスアカウントで同じ利用者のトークンを取って、カード番号の取得と支払いを行う |
+
+C-1 が解消したら、次を本人への依頼にまとめる。
+
+- Firebase のプロジェクト作成と Google サインインの有効化
+- サービスアカウントの鍵を環境変数へ登録
+- Crossmint 本番での設定：JWT authentication で 3P Auth providers → Firebase（プロジェクト ID）、クライアント側キーの発行、許可するオリジンに GitHub Pages の URL
+- このリポジトリの GitHub Pages の有効化
+- live の Nevermined の買い手キー
+
+参考：今のブランチの中で、本番のカード経路を通すには、公開ページ（`web/enroll` の本番用）と、`CROSSMINT_AUTH=firebase` のモードの追加が要る。staging の独自 JWT（`custom-jwt`）は staging だけに制限したまま。
+
 ## 自動記録
 
 <!-- 以下は scripts/enroll-server.ts・src/card-purchase.ts が追記する -->
