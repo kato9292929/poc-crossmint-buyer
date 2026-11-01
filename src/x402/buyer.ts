@@ -24,6 +24,8 @@ export interface BuyParams {
   target: string;
   outDir?: string;
   fetchImpl?: typeof fetch;
+  /** ログの seller。既定は jin */
+  seller?: string;
 }
 
 export interface BuyResult {
@@ -52,7 +54,7 @@ export async function buyOnce(p: BuyParams): Promise<BuyResult> {
     ...baseEntry(started),
     phase: 'A' as const,
     buyer: 'crossmint-wallet' as const,
-    seller: 'jin' as const,
+    seller: p.seller ?? 'jin',
     item: p.url,
     currency: 'USDC',
     payer: p.payer,
@@ -82,10 +84,12 @@ export async function buyOnce(p: BuyParams): Promise<BuyResult> {
   }
   if (!probe.paymentRequired) return fail(`expected_402: status ${probe.status}`);
 
+  // 402 の内容（accepts）をそのまま記録に残す
+  const acceptsRef = JSON.stringify(probe.paymentRequired.accepts.map((a) => ({ scheme: a.scheme, network: a.network, asset: a.asset, amount: a.amount, payTo: a.payTo })));
   const sel = selectRequirements(probe.paymentRequired, p.walletNetwork, p.assets);
   if (!sel.ok) {
     const first = probe.paymentRequired.accepts[0];
-    return fail(`${sel.reason}: ${sel.detail}`, first ? { network: first.network, amount: p.expectedUsd } : {});
+    return fail(`${sel.reason}: ${sel.detail}`, first ? { network: first.network, amount: p.expectedUsd } : {}, { accepts: acceptsRef });
   }
   const req = sel.requirements;
   const amountUsd = microToUsd(sel.amountMicro);
@@ -147,7 +151,7 @@ export async function buyOnce(p: BuyParams): Promise<BuyResult> {
     tx,
     result: ok ? 'success' : 'failure',
     error: ok ? null : `http_${res.status}${settleError ? `: ${settleError}` : ''}: ${text.slice(0, 300)}`,
-    ref: { signed, status: res.status, payTo: req.payTo, asset: req.asset, bodyFile },
+    ref: { signed, status: res.status, payTo: req.payTo, asset: req.asset, accepts: acceptsRef, bodyFile, bodySummary: text.replace(/\s+/g, ' ').slice(0, 200) },
   };
   appendPurchase(entry, started);
   return { entry, status: res.status, bodyFile };

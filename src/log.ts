@@ -22,7 +22,8 @@ export interface PurchaseLogEntry {
   time_utc: string;
   phase: 'A' | 'B';
   buyer: 'crossmint-wallet' | 'crossmint-card';
-  seller: 'jin' | 'nevermined';
+  /** 売り手（jin / nevermined、またはフェーズAで買った x402 のホスト名） */
+  seller: string;
   /** フェーズA: エンドポイントの URL。フェーズB: プラン名 */
   item: string;
   /** 金額（USD、10進文字列） */

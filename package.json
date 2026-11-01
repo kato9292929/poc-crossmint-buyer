@@ -17,7 +17,10 @@
     "probe:solana": "tsx scripts/probe-solana.ts",
     "enroll": "tsx scripts/enroll-server.ts",
     "card:flow": "tsx scripts/run-card-flow.ts",
-    "jwks": "tsx -e \"import('./src/crossmint/custom-jwt.ts').then(async m => console.log((await m.writeJwks()) ? 'web/public/jwks.json を更新した（コミット・プッシュが要る）' : '変更なし'))\""
+    "jwks": "tsx -e \"import('./src/crossmint/custom-jwt.ts').then(async m => console.log((await m.writeJwks()) ? 'web/public/jwks.json を更新した（コミット・プッシュが要る）' : '変更なし'))\"",
+    "probe:x402": "tsx scripts/probe-x402.ts",
+    "buy:x402": "tsx scripts/buy-x402.ts",
+    "check:evm-signer": "tsx scripts/check-evm-signer.ts"
   },
   "dependencies": {
     "@crossmint/common-sdk-base": "0.13.0",
