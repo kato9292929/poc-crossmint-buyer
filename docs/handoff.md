@@ -48,3 +48,8 @@
 | フェーズBの Nevermined の買い手アカウント | このリポジトリ専用の Sandbox の買い手。userId（＝アカウントのアドレス）`0xa670D5e40c7c4B82f16E0E09118Daf8402Eb873e`。この userId の `plan.purchased` はすべて Crossmint のカード経由 |
 | Crossmint の Solana のウォレット（本番） | `2AjCRJWDH1ecvURP6ie7iMSTTtRYxcXmGLYmvdQ8MJjv`（確認用に作っただけ。支払いには使っていない） |
 | フェーズBの購入（Stripe の PaymentIntent） | `pi_3UWEiMPh60bb0BjN12CaN4hJ`（2026-10-30 21:15 JST、$1.00、テストモード、succeeded）。order intent `3ce1717b-8eb7-4162-a288-572bcdf00ac2`。ログ: [evidence/phase-b-2026-10-30.jsonl](evidence/phase-b-2026-10-30.jsonl) |
+
+## 2026-11-02 追記：Base での支払い（実証6・指示書2）
+
+- Crossmint の本番ウォレット（Base）`0xcFe61527Bd815688B3c24fD0Bf57b3A7d62B307d` から、`tick.hugen.tokyo`（JIN ではない）の x402 に $0.005 を1回支払った。tx `0x34cc51597649c94250caca5d5fdaaafb8c03fb8b909144f80d5aef9e28fc3b03`
+- JIN への支払いではないので、実証2の USDC 入口の件数には関係しない。実証2の `config/own_wallets.json` には、このアドレスを `evm`（照合には未使用）として登録する PR を出した（kato9292929/poc-dual-checkout#2）

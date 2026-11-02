@@ -80,6 +80,19 @@ HTTP 400
 - JIN の 402 の `accepts` に Base mainnet の USDC（`eip155:8453`、`0x8335…2913`）を足す。足されれば、このリポジトリのコードはそのまま Base の側を選んで払う（ローカルのテストサーバーで同じ形を確認済み。`test/buy-local.test.ts`、`test/requirements.test.ts`）
 - Crossmint が Solana のウォレットで x402（部分署名したトランザクション、またはスマートウォレット用の x402）に対応する
 
+## A-2：Base の x402 での支払い（指示書2の2）：2回目で成功（2026-11-02）
+
+Crossmint の本番ウォレット（Base）`0xcFe61527Bd815688B3c24fD0Bf57b3A7d62B307d` で、`https://tick.hugen.tokyo/tick/symbols`（$0.005、Base の USDC）を1回買えた。ログ: [evidence/phase-a-base-2026-11-02.jsonl](evidence/phase-a-base-2026-11-02.jsonl)、応答の本文: [evidence/phase-a-base-2026-11-02-response.json](evidence/phase-a-base-2026-11-02-response.json)。
+
+| 時刻（JST） | 結果 | 内容 |
+|---|---|---|
+| 20:55:38 | 失敗（資金は動いていない） | 署名は返った（ウォレットが未デプロイなので ERC-6492 の形）。ファシリテーターは 6492 の手順でウォレットをデプロイした（tx `0xcbede6859f25de2c8e93915bf146760d7bbe83f1be37a569a984a06fef519dd7`、`deployWithFactory`、成功、ガス代はファシリテーター持ち）が、その後の送金で `Facilitator settle failed (400): failed to send transaction: invalid_request: unable to estimate gas`（`errorReason: invalid_payload`）。USDC の残高は 1 のまま |
+| 20:56:35 | **成功** | デプロイ済みになったウォレットで、もう一度だけ実行。tx `0x34cc51597649c94250caca5d5fdaaafb8c03fb8b909144f80d5aef9e28fc3b03`（Base、USDC の `transferWithAuthorization`、status success）。残高 1 → 0.995。応答 200（為替ペアの一覧） |
+
+1回目が止まった理由（推定）: 未デプロイのスマートウォレットでは、ファシリテーターがデプロイと送金を続けて行う。送金のガス見積もりがデプロイの反映前に走ったため失敗したとみられる。2回目はデプロイ済みなので、通常のコントラクト署名（ERC-1271）で通った。**Crossmint のウォレットで初めて x402 を払うときは、1回目が失敗しうる**（ファシリテーターの実装に依存）。事前に何か1回取引してデプロイしておけば避けられる見込み。
+
+確認の手順（資金は動かさない）: `ALLOW_PRODUCTION=true npm run check:evm-signer` で、無害な EIP-712 の署名が Base の RPC で検証できることを確かめてから実行した（未デプロイのため ERC-6492、`valid: true`）。
+
 ## B：エージェントカード（order intent）
 
 order intent の API は `/api/unstable/` 配下（早期アクセス）。staging のキーを受け取ってから本人が web/enroll で通す。エラーで止まった場合は、`scripts/enroll-server.ts` と `src/card-purchase.ts` が、エンドポイント・リクエスト・レスポンス（キー・JWT は伏せる）を下の「自動記録」に追記する。カード番号の取得の応答本文は、成功しても失敗しても記録しない（失敗の応答にカード番号は入らないが、13桁以上の数字列は伏せる）。
